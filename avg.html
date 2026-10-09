@@ -1,0 +1,216 @@
+<title>평단가 계산기</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;700&family=IBM+Plex+Mono:wght@500;600&display=swap">
+<style>
+/* 레이아웃: 상단 요약(평단가·손익) → 매수 내역 표 → 물타기/불타기 시뮬레이션. 한 열, 폭 720px. 색·폰트는 index.html과 동일 */
+:root{
+  --bg:#f3f5f7; --surface:#ffffff; --ink:#14212b; --muted:#5d6b77; --line:#d9e0e6;
+  --accent:#0f6e74; --accent-soft:#dcefee; --gold:#b07a12; --up:#c8372d; --down:#2563b8;
+  --f-body:"IBM Plex Sans KR",system-ui,-apple-system,"Apple SD Gothic Neo",sans-serif;
+  --f-num:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0f161b; --surface:#172129; --ink:#e6edf2; --muted:#93a3b0; --line:#2a3842;
+  --accent:#4fb8bd; --accent-soft:#163a3d; --gold:#e0b04a; --up:#f07a70; --down:#6fa6ef; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0f161b; --surface:#172129; --ink:#e6edf2; --muted:#93a3b0; --line:#2a3842;
+  --accent:#4fb8bd; --accent-soft:#163a3d; --gold:#e0b04a; --up:#f07a70; --down:#6fa6ef; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.55}
+.wrap{max-width:720px;margin:0 auto;padding-inline:16px;padding-block:24px 48px;display:grid;gap:20px}
+h1{font-size:1.35rem;margin:0;text-wrap:balance}
+h2{font-size:.78rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0 0 10px;font-weight:500}
+.sub{color:var(--muted);margin:2px 0 0;font-size:.9rem}
+.sub a{color:var(--accent)}
+.num{font-family:var(--f-num);font-variant-numeric:tabular-nums}
+.hero{background:var(--accent);color:#fff;border-radius:14px;padding:20px;display:grid;gap:14px}
+.hero .big{font-family:var(--f-num);font-size:2.1rem;font-weight:600;line-height:1.1}
+.hero .lbl{font-size:.85rem;opacity:.85}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.stats div{min-width:0}.stats .v{font-family:var(--f-num);font-weight:600;font-size:1rem;overflow-wrap:anywhere}
+section{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px;min-width:0}
+input,select{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:6px 8px;width:100%;min-width:0}
+input:focus-visible,select:focus-visible,button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.pl{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}
+.pl .card{border:1px solid var(--line);border-radius:10px;padding:10px 12px;min-width:0}
+.pl .k{font-size:.8rem;color:var(--muted)}
+.pl .v{font-family:var(--f-num);font-weight:600;font-size:1.15rem;overflow-wrap:anywhere}
+.up{color:var(--up)}.dn{color:var(--down)}
+.tbl{overflow-x:auto}
+table{width:100%;border-collapse:collapse}
+th{font-size:.75rem;color:var(--muted);font-weight:500;text-align:left;padding:4px 4px 8px}
+td{padding:4px;vertical-align:middle}
+td.out{font-family:var(--f-num);text-align:right;white-space:nowrap;font-size:.9rem}
+tbody tr+tr td{border-top:1px solid var(--line)}
+button{font:inherit;cursor:pointer;border-radius:8px}
+.add{margin-top:10px;background:transparent;border:1px dashed var(--accent);color:var(--accent);padding:8px 12px;width:100%}
+.del{background:transparent;border:none;color:var(--muted);font-size:1.1rem;padding:4px 8px}
+.del:hover{color:var(--up)}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+label.f{display:grid;gap:4px;font-size:.85rem;color:var(--muted)}
+.res{margin-top:12px;display:grid;gap:6px}
+.res-row{display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap}
+.res-row .num{font-weight:600}
+.msg{font-size:.85rem;color:var(--muted);margin:8px 0 0}
+.note{font-size:.8rem;color:var(--muted);margin:0}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;margin-bottom:12px}
+.seg button{background:transparent;border:none;border-radius:0;padding:6px 14px;color:var(--muted)}
+.seg button[aria-pressed="true"]{background:var(--accent-soft);color:var(--accent);font-weight:500}
+@media (max-width:460px){.stats{grid-template-columns:1fr 1fr}.hero .big{font-size:1.8rem}.row2{grid-template-columns:1fr}}
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>평단가 계산기</h1>
+    <p class="sub">여러 번 나눠 산 가격과 수량을 넣으면 평균 매입단가와 현재 손익을 계산합니다. 목표 평단가까지 몇 주를 더 사야 하는지도 알려줍니다. · <a href="index.html">월배당 현금흐름</a></p>
+  </header>
+
+  <div class="hero" aria-live="polite">
+    <div>
+      <div class="lbl">평균 매입단가</div>
+      <div class="big" id="avg">0원</div>
+    </div>
+    <div class="stats">
+      <div><div class="lbl">보유 수량</div><div class="v" id="qty">0주</div></div>
+      <div><div class="lbl">총 매입금액</div><div class="v" id="cost">0원</div></div>
+      <div><div class="lbl">매수 횟수</div><div class="v" id="cnt">0회</div></div>
+    </div>
+  </div>
+
+  <section>
+    <h2>현재가 기준 손익</h2>
+    <label class="f" for="cur">현재가 (원)<input id="cur" type="number" inputmode="decimal" placeholder="현재 주가 입력"></label>
+    <div class="pl">
+      <div class="card"><div class="k">평가금액</div><div class="v" id="val">-</div></div>
+      <div class="card"><div class="k">평가손익</div><div class="v" id="pnl">-</div></div>
+      <div class="card"><div class="k">수익률</div><div class="v" id="ret">-</div></div>
+      <div class="card"><div class="k">본전까지 필요 상승률</div><div class="v" id="be">-</div></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>매수 내역</h2>
+    <div class="tbl">
+      <table>
+        <thead><tr><th>매수가 (원)</th><th>수량 (주)</th><th style="text-align:right">매입금액</th><th></th></tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+    <button class="add" id="addBtn" type="button">+ 매수 추가</button>
+  </section>
+
+  <section>
+    <h2>추가 매수 시뮬레이션</h2>
+    <div class="seg" role="group" aria-label="계산 방식">
+      <button type="button" id="mQty" aria-pressed="true">살 수량 → 새 평단</button>
+      <button type="button" id="mTgt" aria-pressed="false">목표 평단 → 필요 수량</button>
+    </div>
+    <div class="row2">
+      <label class="f" for="bPrice">추가 매수가 (원)<input id="bPrice" type="number" inputmode="decimal" placeholder="비우면 현재가"></label>
+      <label class="f" for="bIn" id="bInLbl">추가 수량 (주)<input id="bIn" type="number" inputmode="decimal"></label>
+    </div>
+    <div class="res" id="res"></div>
+    <p class="msg" id="msg"></p>
+  </section>
+
+  <p class="note">수수료·세금은 반영하지 않은 단순 계산입니다. 입력값은 이 기기 브라우저에만 저장됩니다.</p>
+</div>
+
+<script>
+const $=id=>document.getElementById(id);
+const won=n=>(Math.round(n*100)/100).toLocaleString("ko-KR",{maximumFractionDigits:2})+"원";
+const sh=n=>(+n).toLocaleString("ko-KR",{maximumFractionDigits:4})+"주";
+const signed=(n,f)=>(n>0?"+":n<0?"-":"")+f(Math.abs(n));
+const tone=(el,n)=>{el.classList.toggle("up",n>0);el.classList.toggle("dn",n<0)};
+
+let rows=[{price:"",qty:""},{price:"",qty:""}],mode="qty";
+try{
+  const s=JSON.parse(localStorage.getItem("avg.rows")||"null");if(Array.isArray(s)&&s.length)rows=s;
+  $("cur").value=localStorage.getItem("avg.cur")||"";
+  mode=localStorage.getItem("avg.mode")==="tgt"?"tgt":"qty";
+}catch(e){}
+
+function totals(){
+  let q=0,c=0,n=0;
+  rows.forEach(r=>{const p=+r.price||0,k=+r.qty||0;if(p>0&&k>0){q+=k;c+=p*k;n++}});
+  return{q,c,n,avg:q?c/q:0};
+}
+
+function render(){
+  const t=totals(),cur=+$("cur").value||0;
+  $("avg").textContent=t.q?won(t.avg):"0원";
+  $("qty").textContent=sh(t.q);
+  $("cost").textContent=won(t.c);
+  $("cnt").textContent=t.n+"회";
+  document.querySelectorAll("#rows td.out").forEach((td,i)=>{const r=rows[i];td.textContent=won((+r.price||0)*(+r.qty||0))});
+
+  const has=t.q&&cur>0;
+  const val=cur*t.q,pnl=val-t.c,ret=t.c?pnl/t.c*100:0;
+  $("val").textContent=has?won(val):"-";
+  $("pnl").textContent=has?signed(pnl,won):"-";tone($("pnl"),has?pnl:0);
+  $("ret").textContent=has?signed(ret,n=>n.toFixed(2)+"%"):"-";tone($("ret"),has?ret:0);
+  $("be").textContent=!has?"-":pnl>=0?"수익 중":"+"+(t.avg/cur*100-100).toFixed(2)+"%";
+
+  sim(t,cur);
+}
+
+function sim(t,cur){
+  $("mQty").setAttribute("aria-pressed",mode==="qty");
+  $("mTgt").setAttribute("aria-pressed",mode==="tgt");
+  $("bInLbl").firstChild.textContent=mode==="qty"?"추가 수량 (주)":"목표 평단가 (원)";
+  const p=+$("bPrice").value||cur,x=+$("bIn").value||0,res=$("res"),msg=$("msg");
+  res.innerHTML="";msg.textContent="";
+  const row=(k,v,cls)=>{const d=document.createElement("div");d.className="res-row";d.innerHTML=`<span>${k}</span><span class="num ${cls||""}">${v}</span>`;res.appendChild(d)};
+  if(!t.q){msg.textContent="먼저 매수 내역을 입력하세요.";return}
+  if(!(p>0)){msg.textContent="추가 매수가나 현재가를 입력하세요.";return}
+  if(!(x>0))return;
+
+  let n;
+  if(mode==="qty")n=x;
+  else{
+    // (총매입 + n·p) / (보유 + n) = 목표  →  n = (총매입 − 목표·보유) / (목표 − p)
+    const T=x;
+    if(Math.abs(T-t.avg)<1e-9){msg.textContent="이미 목표 평단가입니다.";return}
+    const between=(T<t.avg&&p<T)||(T>t.avg&&p>T);
+    if(!between){msg.textContent=T<t.avg
+      ?"평단을 "+won(T)+"까지 낮추려면 그보다 싼 가격에 사야 합니다. 이 매수가로는 도달할 수 없습니다."
+      :"평단을 "+won(T)+"까지 올리려면 그보다 비싼 가격에 사야 합니다. 이 매수가로는 도달할 수 없습니다.";return}
+    n=Math.ceil((t.c-T*t.q)/(T-p));
+    row("필요 수량",sh(n));
+  }
+  const nq=t.q+n,nc=t.c+n*p,na=nc/nq,d=na-t.avg;
+  row("추가 투입금",won(n*p));
+  row("새 평단가",won(na));
+  row("평단 변화",signed(d,won)+" ("+signed(d/t.avg*100,v=>v.toFixed(2)+"%")+")",d<0?"dn":d>0?"up":"");
+  row("총 보유 / 총 매입",sh(nq)+" / "+won(nc));
+  if(cur>0){const r=(cur*nq-nc)/nc*100;row("매수 후 수익률 (현재가)",signed(r,v=>v.toFixed(2)+"%"),r>0?"up":r<0?"dn":"")}
+  if(mode==="tgt")msg.textContent="수량은 1주 단위로 올림했습니다.";
+}
+
+function save(){try{localStorage.setItem("avg.rows",JSON.stringify(rows));localStorage.setItem("avg.cur",$("cur").value);localStorage.setItem("avg.mode",mode)}catch(e){}}
+
+function build(){
+  const tb=$("rows");tb.innerHTML="";
+  rows.forEach((r,i)=>{
+    const tr=document.createElement("tr");
+    tr.innerHTML=
+      `<td><input type="number" inputmode="decimal" value="${r.price}" aria-label="${i+1}차 매수가"></td>`+
+      `<td><input type="number" inputmode="decimal" value="${r.qty}" aria-label="${i+1}차 수량"></td>`+
+      `<td class="out"></td>`+
+      `<td><button class="del" type="button" aria-label="${i+1}차 삭제">×</button></td>`;
+    const [pi,qi]=tr.querySelectorAll("input");
+    pi.addEventListener("input",e=>{r.price=e.target.value;save();render()});
+    qi.addEventListener("input",e=>{r.qty=e.target.value;save();render()});
+    tr.querySelector(".del").addEventListener("click",()=>{rows.splice(i,1);if(!rows.length)rows.push({price:"",qty:""});save();build()});
+    tb.appendChild(tr);
+  });
+  render();
+}
+
+$("addBtn").addEventListener("click",()=>{rows.push({price:"",qty:""});save();build();const ins=$("rows").querySelectorAll("input");ins[ins.length-2].focus()});
+$("cur").addEventListener("input",()=>{save();render()});
+["bPrice","bIn"].forEach(id=>$(id).addEventListener("input",render));
+$("mQty").addEventListener("click",()=>{mode="qty";$("bIn").value="";save();render()});
+$("mTgt").addEventListener("click",()=>{mode="tgt";$("bIn").value="";save();render()});
+build();
+</script>
