@@ -1,0 +1,205 @@
+<title>월배당 현금흐름</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;700&family=IBM+Plex+Mono:wght@500;600&display=swap">
+<style>
+/* 레이아웃: 상단 요약(월 실수령액) → 하락 시나리오 → 세금 한도 게이지 → 보유 종목 표. 한 열, 폭 720px */
+:root{
+  --bg:#f3f5f7; --surface:#ffffff; --ink:#14212b; --muted:#5d6b77; --line:#d9e0e6;
+  --accent:#0f6e74; --accent-soft:#dcefee; --gold:#b07a12; --warn:#b4471f; --ok:#2f7d4f;
+  --f-body:"IBM Plex Sans KR",system-ui,-apple-system,"Apple SD Gothic Neo",sans-serif;
+  --f-num:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0f161b; --surface:#172129; --ink:#e6edf2; --muted:#93a3b0; --line:#2a3842;
+  --accent:#4fb8bd; --accent-soft:#163a3d; --gold:#e0b04a; --warn:#ef8a62; --ok:#6cc48f; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0f161b; --surface:#172129; --ink:#e6edf2; --muted:#93a3b0; --line:#2a3842;
+  --accent:#4fb8bd; --accent-soft:#163a3d; --gold:#e0b04a; --warn:#ef8a62; --ok:#6cc48f; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.55}
+.wrap{max-width:720px;margin:0 auto;padding-inline:16px;padding-block:24px 48px;display:grid;gap:20px}
+h1{font-size:1.35rem;margin:0;text-wrap:balance}
+h2{font-size:.78rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0 0 10px;font-weight:500}
+.sub{color:var(--muted);margin:2px 0 0;font-size:.9rem}
+.num{font-family:var(--f-num);font-variant-numeric:tabular-nums}
+.hero{background:var(--accent);color:#fff;border-radius:14px;padding:20px;display:grid;gap:14px}
+.hero .big{font-family:var(--f-num);font-size:2.1rem;font-weight:600;line-height:1.1}
+.hero .lbl{font-size:.85rem;opacity:.85}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.stats div{min-width:0}.stats .v{font-family:var(--f-num);font-weight:600;font-size:1rem;overflow-wrap:anywhere}
+section{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px;min-width:0}
+input,select{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:6px 8px;width:100%;min-width:0}
+input:focus-visible,select:focus-visible,button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+input[type=range]{padding:0;accent-color:var(--accent)}
+.scen{display:grid;gap:8px}
+.scen-row{display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap}
+.scen-row .num{font-size:1.25rem;font-weight:600}
+.down{color:var(--warn)}
+.gauge{display:grid;gap:6px;margin-top:10px}
+.bar{height:10px;border-radius:5px;background:var(--line);overflow:hidden}
+.bar i{display:block;height:100%;background:var(--accent);border-radius:5px;transition:width .2s}
+.bar i.over{background:var(--warn)}
+.gauge .meta{display:flex;justify-content:space-between;gap:8px;font-size:.85rem;color:var(--muted);flex-wrap:wrap}
+.chip{display:inline-block;font-size:.75rem;padding:1px 8px;border-radius:999px;background:var(--accent-soft);color:var(--accent);font-weight:500}
+.chip.warn{background:transparent;border:1px solid var(--warn);color:var(--warn)}
+.tbl{overflow-x:auto}
+table{width:100%;border-collapse:collapse;min-width:560px}
+th{font-size:.75rem;color:var(--muted);font-weight:500;text-align:left;padding:4px 4px 8px}
+td{padding:4px;vertical-align:middle}
+td.out{font-family:var(--f-num);text-align:right;white-space:nowrap;font-size:.9rem}
+tbody tr+tr td{border-top:1px solid var(--line)}
+.contrib{height:4px;background:var(--gold);border-radius:2px;margin-top:3px}
+button{font:inherit;cursor:pointer;border-radius:8px}
+.add{margin-top:10px;background:transparent;border:1px dashed var(--accent);color:var(--accent);padding:8px 12px;width:100%}
+.del{background:transparent;border:none;color:var(--muted);font-size:1.1rem;padding:4px 8px}
+.del:hover{color:var(--warn)}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+label.f{display:grid;gap:4px;font-size:.85rem;color:var(--muted)}
+.note{font-size:.8rem;color:var(--muted);margin:0}
+@media (max-width:460px){.stats{grid-template-columns:1fr 1fr}.hero .big{font-size:1.8rem}}
+@media (prefers-reduced-motion:reduce){.bar i{transition:none}}
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>월배당 현금흐름</h1>
+    <p class="sub">보유 종목을 입력하면 매달 통장에 들어오는 분배금, 하락장 영향, 세금 한도까지 한 번에 계산합니다. <span class="chip" id="sampleChip">예시 데이터</span></p>
+  </header>
+
+  <div class="hero" aria-live="polite">
+    <div>
+      <div class="lbl">월 예상 실수령 (세후)</div>
+      <div class="big" id="mNet">0원</div>
+    </div>
+    <div class="stats">
+      <div><div class="lbl">평가금액</div><div class="v" id="tVal">0</div></div>
+      <div><div class="lbl">월 분배금 (세전)</div><div class="v" id="mGross">0</div></div>
+      <div><div class="lbl">연 실수령</div><div class="v" id="yNet">0</div></div>
+    </div>
+  </div>
+
+  <section>
+    <h2>하락장 시나리오</h2>
+    <div class="scen">
+      <div class="scen-row"><label for="drop">기초지수 하락률</label><span class="num" id="dropLbl">-20%</span></div>
+      <input type="range" id="drop" min="0" max="50" step="1" value="20">
+      <div class="scen-row"><span>그때 월 실수령</span><span class="num" id="mNetDrop">0원</span></div>
+      <div class="scen-row"><span>월 감소액</span><span class="num down" id="mLoss">0원</span></div>
+      <p class="note">커버드콜 ETF는 분배율이 순자산 대비로 정해지는 경우가 많아, 가격이 빠지면 분배금도 대체로 비슷한 비율로 줄어든다고 가정했습니다.</p>
+    </div>
+  </section>
+
+  <section>
+    <h2>세금 한도 체크</h2>
+    <div class="gauge">
+      <div class="meta"><span>일반계좌 연 금융소득 → 종합과세 기준 2,000만원</span><span id="gChip"></span></div>
+      <div class="bar"><i id="gBar"></i></div>
+      <div class="meta"><span class="num" id="gTxt"></span><span class="num" id="gLeft"></span></div>
+    </div>
+    <div class="gauge" style="margin-top:18px">
+      <div class="meta"><span>ISA 연 분배금 → 비과세 한도</span><span id="iChip"></span></div>
+      <div class="bar"><i id="iBar"></i></div>
+      <div class="meta"><span class="num" id="iTxt"></span><span class="num" id="iLeft"></span></div>
+    </div>
+    <div class="row2" style="margin-top:14px">
+      <label class="f" for="tax">일반계좌 원천징수율 (%)<input id="tax" type="number" step="0.1" value="15.4" inputmode="decimal"></label>
+      <label class="f" for="isaCap">ISA 비과세 한도 (만원)<input id="isaCap" type="number" step="50" value="200" inputmode="numeric"></label>
+    </div>
+    <p class="note" style="margin-top:8px">ISA는 만기 때 정산되므로 월 실수령에는 세금을 빼지 않았습니다. 한도(일반형 200만원·서민형 400만원 기준)는 제도 변경이 있을 수 있으니 본인 조건으로 고쳐 쓰세요. 다른 이자·배당 소득이 있으면 종합과세 기준에 함께 합산됩니다.</p>
+  </section>
+
+  <section>
+    <h2>보유 종목</h2>
+    <div class="tbl">
+      <table>
+        <thead><tr><th style="width:30%">종목</th><th>계좌</th><th>수량</th><th>현재가</th><th>연 분배율 %</th><th style="text-align:right">월 세후</th><th></th></tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+    <button class="add" id="addBtn" type="button">+ 종목 추가</button>
+    <p class="note" style="margin-top:10px">입력값은 이 기기 브라우저에만 저장됩니다. 금색 막대는 전체 월 분배금에서 그 종목이 차지하는 비중입니다.</p>
+  </section>
+</div>
+
+<script>
+const SAMPLE=[
+  {name:"예시) 나스닥100 커버드콜",acct:"ISA",qty:3000,price:10500,yld:12},
+  {name:"예시) 배당성장 커버드콜",acct:"일반",qty:2000,price:9800,yld:10},
+  {name:"예시) 미국 커버드콜 ETF",acct:"일반",qty:150,price:78000,yld:10.5}
+];
+let rows=[],isSample=true;
+try{const s=JSON.parse(localStorage.getItem("mdiv.rows")||"null");if(Array.isArray(s)&&s.length){rows=s;isSample=false}}catch(e){}
+if(!rows.length)rows=SAMPLE.map(r=>({...r}));
+try{const t=localStorage.getItem("mdiv.tax");if(t)document.getElementById("tax").value=t;const c=localStorage.getItem("mdiv.isa");if(c)document.getElementById("isaCap").value=c}catch(e){}
+
+const won=n=>Math.round(n).toLocaleString("ko-KR")+"원";
+const man=n=>{const v=Math.round(n/10000);return v.toLocaleString("ko-KR")+"만원"};
+const $=id=>document.getElementById(id);
+
+function calc(drop){
+  const tax=(parseFloat($("tax").value)||0)/100,f=1-drop/100;
+  let val=0,mg=0,mn=0,genY=0,isaY=0;const per=[];
+  rows.forEach(r=>{
+    const v=(+r.qty||0)*(+r.price||0)*f, yg=v*(+r.yld||0)/100;
+    const yn=r.acct==="ISA"?yg:yg*(1-tax);
+    val+=v;mg+=yg/12;mn+=yn/12;
+    if(r.acct==="ISA")isaY+=yg;else genY+=yg;
+    per.push({g:yg/12,n:yn/12});
+  });
+  return{val,mg,mn,genY,isaY,per};
+}
+
+function render(){
+  const drop=+$("drop").value,base=calc(0),d=calc(drop);
+  $("mNet").textContent=won(base.mn);
+  $("tVal").textContent=man(base.val);
+  $("mGross").textContent=won(base.mg);
+  $("yNet").textContent=man(base.mn*12);
+  $("dropLbl").textContent="-"+drop+"%";
+  $("mNetDrop").textContent=won(d.mn);
+  $("mLoss").textContent="-"+won(base.mn-d.mn);
+  gauge("g",base.genY,20000000,"종합과세 대상");
+  gauge("i",base.isaY,(parseFloat($("isaCap").value)||0)*10000,"초과분 9.9% 분리과세");
+  const tb=$("rows");
+  tb.querySelectorAll("td.out").forEach((td,i)=>{
+    const p=base.per[i];if(!p)return;
+    td.querySelector("span").textContent=won(p.n);
+    td.querySelector(".contrib").style.width=(base.mg?p.g/base.mg*100:0)+"%";
+  });
+  $("sampleChip").hidden=!isSample;
+}
+function gauge(k,v,cap,overTxt){
+  const pct=cap?v/cap*100:0,over=pct>100;
+  const b=$(k+"Bar");b.style.width=Math.min(pct,100)+"%";b.classList.toggle("over",over);
+  $(k+"Txt").textContent=man(v)+" / "+man(cap);
+  $(k+"Left").textContent=over?man(v-cap)+" 초과":man(cap-v)+" 여유";
+  const c=$(k+"Chip");c.className="chip"+(over?" warn":"");c.textContent=over?overTxt:Math.round(pct)+"%";
+}
+function save(){
+  isSample=false;
+  try{localStorage.setItem("mdiv.rows",JSON.stringify(rows));localStorage.setItem("mdiv.tax",$("tax").value);localStorage.setItem("mdiv.isa",$("isaCap").value)}catch(e){}
+}
+function build(){
+  const tb=$("rows");tb.innerHTML="";
+  rows.forEach((r,i)=>{
+    const tr=document.createElement("tr");
+    tr.innerHTML=
+      `<td><input id="n${i}" value="${(r.name||"").replace(/"/g,"&quot;")}" aria-label="종목명"></td>`+
+      `<td><select id="a${i}" aria-label="계좌"><option${r.acct==="일반"?" selected":""}>일반</option><option${r.acct==="ISA"?" selected":""}>ISA</option></select></td>`+
+      `<td><input id="q${i}" type="number" inputmode="numeric" value="${r.qty}" aria-label="수량"></td>`+
+      `<td><input id="p${i}" type="number" inputmode="numeric" value="${r.price}" aria-label="현재가"></td>`+
+      `<td><input id="y${i}" type="number" step="0.1" inputmode="decimal" value="${r.yld}" aria-label="연 분배율"></td>`+
+      `<td class="out"><span></span><div class="contrib"></div></td>`+
+      `<td><button class="del" type="button" aria-label="삭제">×</button></td>`;
+    const map={n:"name",a:"acct",q:"qty",p:"price",y:"yld"};
+    Object.keys(map).forEach(k=>tr.querySelector("#"+k+i).addEventListener("input",e=>{r[map[k]]=e.target.value;save();render()}));
+    tr.querySelector(".del").addEventListener("click",()=>{rows.splice(i,1);save();build()});
+    tb.appendChild(tr);
+  });
+  render();
+}
+$("addBtn").addEventListener("click",()=>{rows.push({name:"",acct:"일반",qty:0,price:0,yld:0});save();build()});
+$("drop").addEventListener("input",render);
+["tax","isaCap"].forEach(id=>$(id).addEventListener("input",()=>{save();render()}));
+build();
+</script>
