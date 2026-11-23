@@ -206,7 +206,7 @@ function render(){
         const row=document.createElement("div");row.className="frow";
         const a=document.createElement("a");a.className="f"+(f.ans?" ans":"");a.href=fileUrl(f.path);a.target="_blank";a.textContent=f.label;
         const p=document.createElement("button");p.className="p";p.type="button";p.textContent="🖨";p.setAttribute("aria-label",f.label+" 인쇄");
-        p.onclick=()=>openSheet(f,d.head,b.disp);
+        p.onclick=()=>openSheet(f,d.head,b.disp);p.__re={path:f.path,head:d.head,book:b.disp};
         row.append(a,p);t.appendChild(row);
       });
       g.appendChild(t);shown++;
@@ -269,7 +269,18 @@ async function openSheet(f,head,bookName){
     prepare(1,testPages).then(ok=>{if(ok)setBtn("pHalf",BTN.pHalf,false);});
   }catch(e){$("sSub").textContent="파일을 열지 못했습니다: "+e.message;}
 }
-window.addEventListener("afterprint",()=>{$("sheet").hidden=true;freshReload();});
+// 아이패드는 인쇄 창이 '뜨는 순간' afterprint를 보낸다. 그때 새로고침하면 인쇄 창이 닫히므로,
+// 인쇄 창이 닫힌 뒤 화면을 처음 건드릴 때 몰래 새로 불러온다(누른 🖨 파일은 다시 열어 준다).
+let armed=false;
+window.addEventListener("afterprint",()=>{setTimeout(()=>{armed=true;},1200);});
+document.addEventListener("pointerdown",e=>{
+  if(!armed)return;armed=false;
+  const pb=e.target.closest&&e.target.closest("button.p");
+  let re=null;
+  if(pb&&pb.__re)re=pb.__re;
+  else if(!$("sheet").hidden&&cur&&cur.__f&&e.target.id!=="sheet"&&!(e.target.closest&&e.target.closest("#sClose")))re={path:cur.__f.path,head:cur.__head,book:cur.__book};
+  e.preventDefault();e.stopPropagation();freshReload(re);
+},true);
 $("sClose").onclick=()=>{job++;$("sheet").hidden=true;};
 $("sheet").addEventListener("click",e=>{if(e.target.id==="sheet")$("sheet").hidden=true;});
 
