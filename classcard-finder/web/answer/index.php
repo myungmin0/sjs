@@ -13,6 +13,25 @@ function fail($msg) {
   exit;
 }
 
+// 첫 화면에 보일 교재(폴더) 목록. 이 파일 옆 _picked.json 에 저장한다.
+$PICK = __DIR__ . '/_picked.json';
+if (isset($_GET['picked'])) {
+  header('Cache-Control: no-store');
+  header('Content-Type: application/json; charset=utf-8');
+  if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $in = json_decode(file_get_contents('php://input'), true);
+    if (!is_array($in)) fail('잘못된 요청');
+    $in = array_values(array_unique(array_filter($in, 'is_string')));
+    $ok = @file_put_contents($PICK, json_encode($in, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT), LOCK_EX);
+    if ($ok === false) fail('나스에 저장하지 못했습니다(web\\answer 폴더 쓰기 권한 필요).');
+    echo json_encode(['ok' => true, 'n' => count($in)]);
+    exit;
+  }
+  $d = @file_get_contents($PICK);
+  echo ($d === false) ? 'null' : $d;
+  exit;
+}
+
 if (isset($_GET['list'])) {
   header('Cache-Control: no-store');
   if (!$ROOT) fail("'클래스카드 테스트' 폴더를 읽을 수 없습니다. PHP open_basedir 또는 http 읽기 권한을 확인해 주세요. (open_basedir=" . ini_get('open_basedir') . ")");
@@ -99,27 +118,30 @@ section.book{margin-top:22px}
 .frow{display:flex;gap:6px}
 .f{flex:1;min-width:0;display:flex;align-items:center;justify-content:center;min-height:44px;border-radius:9px;text-decoration:none;font-weight:700;font-size:.9rem;background:var(--accent-soft);color:var(--accent);padding:0 6px;text-align:center}
 .f.ans{background:var(--pen-soft);color:var(--pen)}
-.p{flex:none;width:48px;min-height:44px;border:1.5px solid var(--line);border-radius:9px;background:var(--surface);color:var(--fg);font:inherit;font-size:1.1rem;cursor:pointer}
 .empty,.loading{padding:40px 0;text-align:center;color:var(--muted)}
-/* 인쇄 창 */
-#sheet{position:fixed;inset:0;background:rgba(10,14,20,.45);display:flex;align-items:flex-end;justify-content:center;z-index:20}
-#sheet[hidden]{display:none}
-.panel{background:var(--surface);width:min(520px,100%);border-radius:16px 16px 0 0;padding:18px max(16px,env(safe-area-inset-right)) calc(18px + env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left));display:flex;flex-direction:column;gap:12px}
-.panel h3{margin:0;font-size:1rem;overflow-wrap:anywhere}
-.panel .sub{font-size:.85rem;color:var(--muted)}
-.opts{display:grid;gap:8px}
-.opt{font:inherit;font-weight:700;min-height:52px;border-radius:12px;border:0;background:var(--accent-soft);color:var(--accent);cursor:pointer}
-.opt.main{background:var(--accent);color:#fff}
-.range{display:flex;gap:8px;align-items:center}
-.range input{width:70px;font:inherit;font-size:1.1rem;padding:8px;border:1.5px solid var(--line);border-radius:10px;background:var(--bg);color:var(--fg);text-align:center}
-#printArea{display:none}
-@media print{
-  @page{size:A4;margin:0}
-  body>*:not(#printArea){display:none!important}
-  #printArea{display:block}
-  #printArea img{display:block;width:100%;height:auto;page-break-after:always;break-after:page}
-  #printArea img:last-child{page-break-after:auto;break-after:auto}
-}
+.pickbar{display:flex;align-items:center;gap:8px;padding-top:12px}
+.pickbar .chips{flex:1;min-width:0;padding-top:2px}
+#pickBtn{flex:none;font:inherit;font-weight:700;font-size:.9rem;padding:9px 14px;border-radius:999px;border:1.5px dashed var(--accent);background:transparent;color:var(--accent);cursor:pointer;white-space:nowrap}
+#picker{position:fixed;inset:0;background:rgba(10,14,20,.45);display:flex;align-items:flex-end;justify-content:center;z-index:20}
+#picker[hidden]{display:none}
+.ppanel{background:var(--surface);width:min(560px,100%);max-height:88vh;border-radius:16px 16px 0 0;display:flex;flex-direction:column}
+.phead{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:16px 16px 10px;border-bottom:1px solid var(--line)}
+.phead h3{margin:0;font-size:1.05rem}
+.phead small{color:var(--muted);font-size:.8rem}
+.plist{overflow-y:auto;-webkit-overflow-scrolling:touch;padding:6px 16px}
+.prow{display:flex;align-items:center;gap:12px;min-height:52px;border-bottom:1px solid var(--line);cursor:pointer}
+.prow:last-child{border-bottom:0}
+.prow span{flex:1;min-width:0;overflow-wrap:anywhere;font-size:.95rem}
+.prow em{font-style:normal;color:var(--muted);font-size:.8rem}
+.sw{appearance:none;-webkit-appearance:none;flex:none;width:50px;height:30px;border-radius:999px;background:var(--line);position:relative;cursor:pointer;transition:background .15s}
+.sw::after{content:"";position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.25);transition:transform .15s}
+.sw:checked{background:var(--accent)}
+.sw:checked::after{transform:translateX(20px)}
+.pfoot{display:flex;gap:8px;padding:12px 16px calc(12px + env(safe-area-inset-bottom));border-top:1px solid var(--line)}
+.pfoot button{flex:1;font:inherit;font-weight:700;min-height:48px;border-radius:12px;border:0;cursor:pointer;background:var(--accent-soft);color:var(--accent)}
+.pfoot button.main{background:var(--accent);color:#fff}
+#pmsg{font-size:.8rem;color:var(--pen);padding:0 16px}
+.pg{font-size:.78rem;color:var(--muted);text-align:center;margin-top:-2px}
 </style>
 </head>
 <body>
@@ -130,26 +152,23 @@ section.book{margin-top:22px}
       <input id="q" type="search" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="예: ㄱㅂ 12 · 스타터 23 · 어휘끝 5">
       <button class="btn" id="clear" type="button">지우기</button>
     </div>
-    <div class="hint">초성이나 교재 이름 일부 + DAY 번호. 🖨 버튼은 시험지 쪽만 바로 인쇄합니다.</div>
+    <div class="hint">초성이나 교재 이름 일부 + DAY 번호. 인쇄: 파일을 열고 공유 → 프린트. 답이 든 파일은 프린트 창 '범위'에서 시험지 쪽만 고르세요.</div>
   </header>
-  <div class="chips" id="chips"></div>
+  <div class="pickbar"><div class="chips" id="chips"></div><button id="pickBtn" type="button">교재 고르기</button></div>
   <main id="list"><div class="loading">나스에서 목록을 읽는 중…</div></main>
 </div>
 
-<div id="sheet" hidden>
-  <div class="panel" role="dialog" aria-modal="true">
-    <h3 id="sTitle"></h3>
-    <div class="sub" id="sSub">쪽 수를 확인하는 중…</div>
-    <div class="opts">
-      <button class="opt main" id="pHalf" type="button" disabled>시험지만 인쇄</button>
-      <button class="opt" id="pAll" type="button" disabled>전체 인쇄</button>
-      <div class="range"><input id="r1" type="number" min="1" inputmode="numeric"> ~ <input id="r2" type="number" min="1" inputmode="numeric">쪽 <button class="opt" id="pRange" type="button" style="flex:1" disabled>이 쪽만 인쇄</button></div>
-      <button class="opt" id="sClose" type="button" style="background:transparent;color:var(--muted)">닫기</button>
-    </div>
+
+
+<div id="picker" hidden>
+  <div class="ppanel" role="dialog" aria-modal="true" aria-labelledby="pTitle">
+    <div class="phead"><div><h3 id="pTitle">첫 화면에 보일 교재</h3><small id="pCount"></small></div>
+      <div style="display:flex;gap:6px"><button class="chip" id="pAllOn" type="button">모두 켜기</button><button class="chip" id="pAllOff" type="button">모두 끄기</button></div></div>
+    <div class="plist" id="plist"></div>
+    <div id="pmsg"></div>
+    <div class="pfoot"><button id="pCancel" type="button">취소</button><button class="main" id="pSave" type="button">저장</button></div>
   </div>
 </div>
-<div id="printArea"></div>
-
 <script>
 pdfjsLib.GlobalWorkerOptions.workerSrc="_answer_page/pdf.worker.min.js";
 const CHO="ㄱㄲㄴㄷㄸㄹㅁㅂㅃㅅㅆㅇㅈㅉㅊㅋㅌㅍㅎ";
@@ -158,7 +177,8 @@ const norm=s=>s.normalize("NFC").toLowerCase().replace(/[\s\[\]\-_&()~.,#]/g,"")
 const $=id=>document.getElementById(id);
 const fileUrl=p=>"?file="+encodeURIComponent(p);
 const pad=x=>String(x).padStart(2,"0");
-let BOOKS=[],book=-1;
+let BOOKS=[],book=-1,PICKED=null; // PICKED: 보일 교재 폴더 이름 목록(null이면 전부)
+const shownBook=b=>!PICKED||PICKED.includes(b.name);
 
 function build(paths){
   const map=new Map();
@@ -194,6 +214,7 @@ const dayOk=(d,n)=>d.a!=null?(n>=d.a&&n<=d.b):d.nums.includes(n);
 function render(){
   const {n,words}=parse($("q").value.trim());const list=$("list");list.innerHTML="";let shown=0;
   BOOKS.forEach(b=>{
+    if(!shownBook(b))return;
     if(book>=0&&b.i!==book)return; if(words.length&&!bookOk(b,words))return;
     let days=b.days; if(n!==null)days=days.filter(d=>dayOk(d,n)); if(!days.length)return;
     const sec=document.createElement("section");sec.className="book";
@@ -204,95 +225,85 @@ function render(){
       const dn=document.createElement("div");dn.className="dn";dn.textContent=d.head;t.appendChild(dn);
       d.files.forEach(f=>{
         const row=document.createElement("div");row.className="frow";
-        const a=document.createElement("a");a.className="f"+(f.ans?" ans":"");a.href=fileUrl(f.path);a.target="_blank";a.textContent=f.label;
-        const p=document.createElement("button");p.className="p";p.type="button";p.textContent="🖨";p.setAttribute("aria-label",f.label+" 인쇄");
-        p.onclick=()=>openSheet(f,d.head,b.disp);p.__re={path:f.path,head:d.head,book:b.disp};
-        row.append(a,p);t.appendChild(row);
+        const a=document.createElement("a");a.className="f"+(f.ans?" ans":"");a.href="pdf.php?file="+encodeURIComponent(f.path);a.textContent=f.label;
+        row.append(a);t.appendChild(row);
+        const pg=document.createElement("div");pg.className="pg";pg.dataset.path=f.path;pg.dataset.lab=f.label;t.appendChild(pg);
       });
       g.appendChild(t);shown++;
     });
     sec.appendChild(g);list.appendChild(sec);
   });
-  if(!shown)list.innerHTML='<div class="empty">찾는 파일이 없습니다. 교재 이름이나 번호를 바꿔 보세요.</div>';
+  if(!shown)list.innerHTML=(PICKED&&!PICKED.length)?'<div class="empty">켜 둔 교재가 없습니다. 오른쪽 위 \'교재 고르기\'에서 켜 주세요.</div>':'<div class="empty">찾는 파일이 없습니다. 교재 이름이나 번호를 바꿔 보세요.</div>';
 }
 function chips(){const c=$("chips");c.innerHTML="";
-  [{i:-1,disp:"전체"},...BOOKS].forEach(x=>{const btn=document.createElement("button");btn.type="button";btn.className="chip";
+  [{i:-1,disp:"전체"},...BOOKS.filter(shownBook)].forEach(x=>{const btn=document.createElement("button");btn.type="button";btn.className="chip";
     btn.setAttribute("aria-pressed",String(book===x.i));btn.textContent=x.disp;btn.onclick=()=>{book=x.i;chips();render();};c.appendChild(btn);});}
 
-/* 인쇄 */
-// 사파리는 버튼을 누른 그 순간에만 인쇄 창을 허용한다. 그래서 쪽 그림을 먼저 만들어 두고, 누르면 바로 인쇄한다.
-let cur=null,prepared={key:"",ready:false},job=0;
-const BTN={pHalf:"",pAll:"",pRange:""};
-function setBtn(id,text,dis){$(id).textContent=text;$(id).disabled=!!dis;}
-async function prepare(a,b){
-  const my=++job;prepared={key:a+"-"+b,ready:false};
-  const imgs=[];
-  for(let i=a;i<=b;i++){
-    const page=await cur.getPage(i);const vp=page.getViewport({scale:2.4});
-    const cv=document.createElement("canvas");cv.width=vp.width;cv.height=vp.height;
-    await page.render({canvasContext:cv.getContext("2d"),viewport:vp}).promise;
-    const img=new Image();img.src=cv.toDataURL("image/jpeg",.92);await img.decode();imgs.push(img);
-    if(my!==job)return false;
+// 파일마다 쪽 수를 읽어 '시험지 몇 쪽'을 적어 둔다(보이는 파일이 적을 때만).
+const PG={};let pgJob=0;
+async function pages(){
+  const els=[...document.querySelectorAll(".pg")];if(!els.length||els.length>30)return;
+  const my=++pgJob;
+  for(const el of els){
+    if(my!==pgJob)return;
+    const p=el.dataset.path;
+    try{ if(PG[p]==null){const d=await pdfjsLib.getDocument(fileUrl(p)).promise;PG[p]=d.numPages;d.destroy();}
+      const n=PG[p];const t=(!/시험지/.test(el.dataset.lab)&&n>=4&&n%2===0)?n/2:n;
+      el.textContent=t===n?`${n}쪽 · 전부 시험지`:`${n}쪽 · 시험지 1–${t}쪽`;
+    }catch(e){}
   }
-  const area=$("printArea");area.innerHTML="";imgs.forEach(im=>area.appendChild(im));
-  prepared.ready=true;return true;
 }
-// 사파리는 한 화면에서 인쇄를 두 번째부터 막는다. 그래서 인쇄가 끝나면 화면을 몰래 새로 불러와
-// (검색어·교재·스크롤은 그대로) 다음 인쇄도 '첫 번째 인쇄'가 되게 한다.
-let printed=false;
+/* 교재 고르기 */
+const LKEY="ccPicked";
+function openPicker(){
+  const list=$("plist");list.innerHTML="";$("pmsg").textContent="";
+  BOOKS.forEach(b=>{
+    const row=document.createElement("label");row.className="prow";
+    const n=b.days.reduce((s,d)=>s+d.files.length,0);
+    row.innerHTML=`<span></span><em>${n}개</em>`;row.querySelector("span").textContent=b.name;
+    const cb=document.createElement("input");cb.type="checkbox";cb.className="sw";cb.value=b.name;cb.checked=shownBook(b);
+    cb.addEventListener("change",cnt);row.appendChild(cb);list.appendChild(row);
+  });
+  cnt();$("picker").hidden=false;
+}
+function cnt(){const all=[...document.querySelectorAll("#plist .sw")];$("pCount").textContent=`${all.filter(x=>x.checked).length}개 켬 · 전체 ${all.length}개`;}
+$("pickBtn").onclick=openPicker;
+$("pCancel").onclick=()=>{$("picker").hidden=true;};
+$("picker").addEventListener("click",e=>{if(e.target.id==="picker")$("picker").hidden=true;});
+$("pAllOn").onclick=()=>{document.querySelectorAll("#plist .sw").forEach(x=>x.checked=true);cnt();};
+$("pAllOff").onclick=()=>{document.querySelectorAll("#plist .sw").forEach(x=>x.checked=false);cnt();};
+$("pSave").onclick=async()=>{
+  const sel=[...document.querySelectorAll("#plist .sw")].filter(x=>x.checked).map(x=>x.value);
+  $("pSave").disabled=true;$("pSave").textContent="저장 중…";
+  let ok=false;
+  try{const r=await fetch("?picked=1",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(sel)});const j=await r.json();ok=r.ok&&j.ok;if(!ok)$("pmsg").textContent=j.error||"저장 실패";}
+  catch(e){$("pmsg").textContent="저장 실패: "+e.message;}
+  try{localStorage.setItem(LKEY,JSON.stringify(sel));}catch(e){}
+  $("pSave").disabled=false;$("pSave").textContent="저장";
+  PICKED=sel;if(book>=0&&!shownBook(BOOKS[book]))book=-1;chips();render();
+  if(ok)$("picker").hidden=true;else $("pmsg").textContent+=" · 이 기기에만 저장했습니다.";
+};
+
+// 같은 탭에서 파일을 열었다가 뒤로 오면 검색어·교재·스크롤을 그대로 되살린다.
 const SKEY="ccState";
-function saveState(reopen){try{sessionStorage.setItem(SKEY,JSON.stringify({q:$("q").value,book,y:window.scrollY,reopen:reopen||null}));}catch(e){}}
-function freshReload(reopen){saveState(reopen);location.reload();}
-function press(id,a,b){
-  if(printed){freshReload(cur&&cur.__f?{path:cur.__f.path,head:cur.__head,book:cur.__book}:null);return;}
-  if(prepared.key===a+"-"+b&&prepared.ready){printed=true;window.print();return;}   // 누른 순간 바로 인쇄
-  setBtn(id,"준비 중…",true);
-  prepare(a,b).then(ok=>{if(ok)setBtn(id,"준비 완료 · 눌러서 인쇄",false);});
-}
-async function openSheet(f,head,bookName){
-  job++;prepared={key:"",ready:false};$("printArea").innerHTML="";
-  $("sheet").hidden=false;$("sTitle").textContent=bookName+" · "+head+" · "+f.label;$("sSub").textContent="쪽 수를 확인하는 중…";
-  ["pHalf","pAll","pRange"].forEach(id=>$(id).disabled=true);
-  try{
-    const doc=await pdfjsLib.getDocument(fileUrl(f.path)).promise;cur=doc;doc.__f=f;doc.__head=head;doc.__book=bookName;const n=doc.numPages;
-    // 답이 함께 든 파일은 앞 절반이 시험지, 뒤 절반이 답지(4쪽 이상 짝수일 때)
-    const testPages=(!/시험지/.test(f.label)&&n>=4&&n%2===0)?n/2:n;
-    $("sSub").textContent=`전체 ${n}쪽 · 시험지 ${testPages===n?"전체":"1–"+testPages+"쪽"}`;
-    BTN.pHalf=testPages===n?`시험지 인쇄 (${n}쪽)`:`시험지만 인쇄 (1–${testPages}쪽)`;BTN.pAll="전체 인쇄";BTN.pRange="이 쪽만 인쇄";
-    setBtn("pAll",BTN.pAll,false);setBtn("pRange",BTN.pRange,false);
-    $("pHalf").onclick=()=>press("pHalf",1,testPages);
-    $("pAll").onclick=()=>press("pAll",1,n);
-    $("r1").value=1;$("r2").value=testPages;$("r1").max=$("r2").max=n;
-    $("pRange").onclick=()=>{const a=Math.max(1,+$("r1").value||1),b=Math.min(n,+$("r2").value||n);press("pRange",a,Math.max(a,b));};
-    // 시험지 쪽은 미리 준비해 두어 한 번 누르면 바로 인쇄되게
-    setBtn("pHalf","시험지 준비 중…",true);
-    prepare(1,testPages).then(ok=>{if(ok)setBtn("pHalf",BTN.pHalf,false);});
-  }catch(e){$("sSub").textContent="파일을 열지 못했습니다: "+e.message;}
-}
-// 아이패드는 인쇄 창이 '뜨는 순간' afterprint를 보낸다. 그때 새로고침하면 인쇄 창이 닫히므로,
-// 인쇄 창이 닫힌 뒤 화면을 처음 건드릴 때 몰래 새로 불러온다(누른 🖨 파일은 다시 열어 준다).
-let armed=false;
-window.addEventListener("afterprint",()=>{setTimeout(()=>{armed=true;},1200);});
-document.addEventListener("pointerdown",e=>{
-  if(!armed)return;armed=false;
-  const pb=e.target.closest&&e.target.closest("button.p");
-  let re=null;
-  if(pb&&pb.__re)re=pb.__re;
-  else if(!$("sheet").hidden&&cur&&cur.__f&&e.target.id!=="sheet"&&!(e.target.closest&&e.target.closest("#sClose")))re={path:cur.__f.path,head:cur.__head,book:cur.__book};
-  e.preventDefault();e.stopPropagation();freshReload(re);
-},true);
-$("sClose").onclick=()=>{job++;$("sheet").hidden=true;};
-$("sheet").addEventListener("click",e=>{if(e.target.id==="sheet")$("sheet").hidden=true;});
+function saveState(){try{sessionStorage.setItem(SKEY,JSON.stringify({q:$("q").value,book,y:window.scrollY}));}catch(e){}}
+document.addEventListener("click",e=>{if(e.target.closest&&e.target.closest("a.f"))saveState();},true);
+let pgT=0;
 
 $("q").addEventListener("input",render);
+const _render=render;render=function(){_render();clearTimeout(pgT);pgT=setTimeout(pages,400);};
 $("clear").onclick=()=>{$("q").value="";render();$("q").focus();};
-fetch("?list=1").then(async r=>{const j=await r.json();if(!r.ok||j.error)throw new Error(j.error||r.status);return j;}).then(paths=>{build(paths);
+Promise.all([
+  fetch("?list=1").then(async r=>{const j=await r.json();if(!r.ok||j.error)throw new Error(j.error||r.status);return j;}),
+  fetch("?picked=1").then(r=>r.json()).catch(()=>null)
+]).then(([paths,pk])=>{build(paths);
+  if(!Array.isArray(pk)){try{pk=JSON.parse(localStorage.getItem(LKEY)||"null");}catch(e){pk=null;}}
+  PICKED=Array.isArray(pk)?pk:null;
   $("count").textContent=`교재 ${BOOKS.length}개 · 파일 ${paths.length}개`;
   let st=null;try{st=JSON.parse(sessionStorage.getItem(SKEY)||"null");sessionStorage.removeItem(SKEY);}catch(e){}
   if(st){$("q").value=st.q||"";book=typeof st.book==="number"?st.book:-1;}
   chips();render();
-  if(st){window.scrollTo(0,st.y||0);
-    if(st.reopen){for(const b of BOOKS)for(const d of b.days)for(const f of d.files)if(f.path===st.reopen.path){openSheet(f,st.reopen.head,st.reopen.book);return;}}}
+  if(st)window.scrollTo(0,st.y||0);
   })
  .catch(e=>{$("list").innerHTML='<div class="empty">목록을 읽지 못했습니다. '+e.message+'</div>';});
 </script>
