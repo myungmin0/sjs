@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>시험지 인쇄 샘플</title>
+<style>
+:root{--bg:#f3f5f8;--surface:#fff;--line:#dde2ea;--fg:#1b2230;--muted:#667085;--accent:#2350c8;--accent-soft:#e6ecfb;--pen:#d33a2c;--pen-soft:#fbe9e6}
+@media (prefers-color-scheme:dark){:root{--bg:#12161d;--surface:#1a2029;--line:#2c3441;--fg:#e8ecf2;--muted:#9aa4b5;--accent:#7d9bff;--accent-soft:#1f2a47;--pen:#ff7a6b;--pen-soft:#3a1f1c;color-scheme:dark}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:-apple-system,"Apple SD Gothic Neo",sans-serif;font-size:16px}
+.wrap{max-width:640px;margin:0 auto;padding:20px max(16px,env(safe-area-inset-right))}
+h1{font-size:1.2rem;margin:0 0 6px}
+.sub{color:var(--muted);font-size:.9rem;margin:0 0 20px;line-height:1.5}
+.day{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:10px}
+.dn{font-weight:700}
+a.b{display:flex;align-items:center;justify-content:center;min-height:52px;border-radius:11px;text-decoration:none;font-weight:700;font-size:1.05rem}
+.print{background:var(--accent);color:#fff}
+.ans{background:var(--pen-soft);color:var(--pen)}
+ol{color:var(--muted);font-size:.9rem;line-height:1.7;padding-left:20px;margin-top:22px}
+</style></head><body><div class="wrap">
+<h1>시험지 인쇄 샘플</h1>
+<p class="sub">주니어 능률 - 입문 · DAY 01 한 개만 넣은 시험용 페이지입니다.</p>
+<div class="day">
+  <div class="dn">DAY 01</div>
+  <a class="b print" href="testonly/ipmun_day01.pdf">🖨 시험지 열기 (2쪽)</a>
+  <a class="b ans" href="index.php?file=07_%EC%A3%BC%EB%8B%88%EC%96%B4%20%EB%8A%A5%EB%A5%A0%20-%20%EC%9E%85%EB%AC%B8%2F%EC%A3%BC%EB%8B%88%EC%96%B4%20%EB%8A%A5%EB%A5%A0%20VOCA%20%EC%9E%85%EB%AC%B8%20%5B2023%5D%20-%20DAY%2001%20%EB%8B%B5.pdf">답지 보기 (채점용)</a>
+</div>
+<ol>
+  <li>파란 버튼을 누르면 시험지만 든 PDF가 열립니다.</li>
+  <li>아래쪽(또는 위쪽) 공유 버튼 → <b>프린트</b>를 누릅니다.</li>
+  <li>뒤로 가기로 이 화면에 돌아와 다시 해 봐도 경고가 뜨는지 확인해 주세요.</li>
+</ol>
+</div></body></html>
