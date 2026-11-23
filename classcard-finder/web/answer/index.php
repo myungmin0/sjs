@@ -54,52 +54,6 @@ if (isset($_GET['file'])) {
   readfile($real);
   exit;
 }
-
-if (isset($_GET['print'])) {
-  header('Content-Type: text/html; charset=utf-8');
-?><!doctype html>
-<html lang="ko"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>시험지 인쇄</title>
-<script src="_answer_page/pdf.min.js"></script>
-<style>
-:root{--bg:#f3f5f8;--fg:#1b2230;--muted:#667085;--accent:#2350c8;--line:#dde2ea}
-body{margin:0;background:var(--bg);color:var(--fg);font-family:-apple-system,"Apple SD Gothic Neo","Noto Sans KR",sans-serif}
-.bar{position:sticky;top:0;background:#fff;border-bottom:1px solid var(--line);padding:calc(12px + env(safe-area-inset-top)) 16px 12px;display:flex;flex-direction:column;gap:10px}
-.t{font-weight:700;overflow-wrap:anywhere}.s{font-size:.85rem;color:var(--muted)}
-.row{display:flex;gap:8px}
-button{font:inherit;font-weight:700;min-height:56px;border:0;border-radius:12px;cursor:pointer}
-#go{flex:1;background:var(--accent);color:#fff;font-size:1.1rem}#go:disabled{opacity:.5}
-#close{padding:0 18px;background:#e6ecfb;color:var(--accent)}
-#pages{padding:16px;display:flex;flex-direction:column;gap:12px;align-items:center}
-#pages img{width:100%;max-width:700px;box-shadow:0 1px 4px rgba(0,0,0,.15);background:#fff}
-@media print{@page{size:A4;margin:0}.bar{display:none}body{background:#fff}#pages{padding:0;gap:0;display:block}
-#pages img{display:block;width:100%;max-width:none;box-shadow:none;page-break-after:always;break-after:page}#pages img:last-child{page-break-after:auto;break-after:auto}}
-</style></head><body>
-<div class="bar"><div class="t" id="t"></div><div class="s" id="s">준비 중…</div>
-<div class="row"><button id="go" type="button" disabled>준비 중…</button><button id="close" type="button">닫기</button></div></div>
-<div id="pages"></div>
-<script>
-pdfjsLib.GlobalWorkerOptions.workerSrc="_answer_page/pdf.worker.min.js";
-const q=new URLSearchParams(location.search),f=q.get("print");let a=+q.get("a")||1,b=+q.get("b")||0;
-document.getElementById("t").textContent=f.split("/").pop().replace(/\.pdf$/i,"");
-document.getElementById("close").onclick=()=>{window.close();setTimeout(()=>history.back(),200);};
-document.getElementById("go").onclick=()=>window.print();
-(async()=>{try{
-  const doc=await pdfjsLib.getDocument("?file="+encodeURIComponent(f)).promise;const n=doc.numPages;
-  if(!b||b>n)b=n;if(a>b)a=1;
-  document.getElementById("s").textContent=`${a}–${b}쪽 (전체 ${n}쪽)`;
-  const box=document.getElementById("pages");
-  for(let i=a;i<=b;i++){const page=await doc.getPage(i);const vp=page.getViewport({scale:2.4});
-    const cv=document.createElement("canvas");cv.width=vp.width;cv.height=vp.height;
-    await page.render({canvasContext:cv.getContext("2d"),viewport:vp}).promise;
-    const img=new Image();img.src=cv.toDataURL("image/jpeg",.92);await img.decode();box.appendChild(img);}
-  const g=document.getElementById("go");g.disabled=false;g.textContent="인쇄하기";
-}catch(e){document.getElementById("s").textContent="파일을 열지 못했습니다: "+e.message;}})();
-</script></body></html>
-<?php
-  exit;
-}
 ?><!doctype html>
 <html lang="ko">
 <head>
@@ -194,6 +148,7 @@ section.book{margin-top:22px}
     </div>
   </div>
 </div>
+<div id="printArea"></div>
 
 <script>
 pdfjsLib.GlobalWorkerOptions.workerSrc="_answer_page/pdf.worker.min.js";
@@ -265,34 +220,69 @@ function chips(){const c=$("chips");c.innerHTML="";
     btn.setAttribute("aria-pressed",String(book===x.i));btn.textContent=x.disp;btn.onclick=()=>{book=x.i;chips();render();};c.appendChild(btn);});}
 
 /* 인쇄 */
-// 사파리는 한 페이지에서 인쇄를 두 번째부터 막는다. 그래서 인쇄할 때마다 새 탭(인쇄 화면)을 연다.
-let job=0;
-const printUrl=(f,a,b)=>"?print="+encodeURIComponent(f.path)+"&a="+a+"&b="+b;
-function go(f,a,b){window.open(printUrl(f,a,b),"_blank");$("sheet").hidden=true;}
+// 사파리는 버튼을 누른 그 순간에만 인쇄 창을 허용한다. 그래서 쪽 그림을 먼저 만들어 두고, 누르면 바로 인쇄한다.
+let cur=null,prepared={key:"",ready:false},job=0;
+const BTN={pHalf:"",pAll:"",pRange:""};
+function setBtn(id,text,dis){$(id).textContent=text;$(id).disabled=!!dis;}
+async function prepare(a,b){
+  const my=++job;prepared={key:a+"-"+b,ready:false};
+  const imgs=[];
+  for(let i=a;i<=b;i++){
+    const page=await cur.getPage(i);const vp=page.getViewport({scale:2.4});
+    const cv=document.createElement("canvas");cv.width=vp.width;cv.height=vp.height;
+    await page.render({canvasContext:cv.getContext("2d"),viewport:vp}).promise;
+    const img=new Image();img.src=cv.toDataURL("image/jpeg",.92);await img.decode();imgs.push(img);
+    if(my!==job)return false;
+  }
+  const area=$("printArea");area.innerHTML="";imgs.forEach(im=>area.appendChild(im));
+  prepared.ready=true;return true;
+}
+// 사파리는 한 화면에서 인쇄를 두 번째부터 막는다. 그래서 인쇄가 끝나면 화면을 몰래 새로 불러와
+// (검색어·교재·스크롤은 그대로) 다음 인쇄도 '첫 번째 인쇄'가 되게 한다.
+let printed=false;
+const SKEY="ccState";
+function saveState(reopen){try{sessionStorage.setItem(SKEY,JSON.stringify({q:$("q").value,book,y:window.scrollY,reopen:reopen||null}));}catch(e){}}
+function freshReload(reopen){saveState(reopen);location.reload();}
+function press(id,a,b){
+  if(printed){freshReload(cur&&cur.__f?{path:cur.__f.path,head:cur.__head,book:cur.__book}:null);return;}
+  if(prepared.key===a+"-"+b&&prepared.ready){printed=true;window.print();return;}   // 누른 순간 바로 인쇄
+  setBtn(id,"준비 중…",true);
+  prepare(a,b).then(ok=>{if(ok)setBtn(id,"준비 완료 · 눌러서 인쇄",false);});
+}
 async function openSheet(f,head,bookName){
-  const my=++job;
+  job++;prepared={key:"",ready:false};$("printArea").innerHTML="";
   $("sheet").hidden=false;$("sTitle").textContent=bookName+" · "+head+" · "+f.label;$("sSub").textContent="쪽 수를 확인하는 중…";
   ["pHalf","pAll","pRange"].forEach(id=>$(id).disabled=true);
   try{
-    const doc=await pdfjsLib.getDocument(fileUrl(f.path)).promise;if(my!==job)return;const n=doc.numPages;
+    const doc=await pdfjsLib.getDocument(fileUrl(f.path)).promise;cur=doc;doc.__f=f;doc.__head=head;doc.__book=bookName;const n=doc.numPages;
     // 답이 함께 든 파일은 앞 절반이 시험지, 뒤 절반이 답지(4쪽 이상 짝수일 때)
     const testPages=(!/시험지/.test(f.label)&&n>=4&&n%2===0)?n/2:n;
-    $("sSub").textContent=`전체 ${n}쪽 · 시험지 ${testPages===n?"전체":"1–"+testPages+"쪽"} · 누르면 인쇄 화면이 새 탭으로 열립니다`;
-    $("pHalf").textContent=testPages===n?`시험지 인쇄 (${n}쪽)`:`시험지만 인쇄 (1–${testPages}쪽)`;
-    $("pHalf").onclick=()=>go(f,1,testPages);
-    $("pAll").onclick=()=>go(f,1,n);
+    $("sSub").textContent=`전체 ${n}쪽 · 시험지 ${testPages===n?"전체":"1–"+testPages+"쪽"}`;
+    BTN.pHalf=testPages===n?`시험지 인쇄 (${n}쪽)`:`시험지만 인쇄 (1–${testPages}쪽)`;BTN.pAll="전체 인쇄";BTN.pRange="이 쪽만 인쇄";
+    setBtn("pAll",BTN.pAll,false);setBtn("pRange",BTN.pRange,false);
+    $("pHalf").onclick=()=>press("pHalf",1,testPages);
+    $("pAll").onclick=()=>press("pAll",1,n);
     $("r1").value=1;$("r2").value=testPages;$("r1").max=$("r2").max=n;
-    $("pRange").onclick=()=>{const a=Math.max(1,+$("r1").value||1),b=Math.min(n,+$("r2").value||n);go(f,a,Math.max(a,b));};
-    ["pHalf","pAll","pRange"].forEach(id=>$(id).disabled=false);
+    $("pRange").onclick=()=>{const a=Math.max(1,+$("r1").value||1),b=Math.min(n,+$("r2").value||n);press("pRange",a,Math.max(a,b));};
+    // 시험지 쪽은 미리 준비해 두어 한 번 누르면 바로 인쇄되게
+    setBtn("pHalf","시험지 준비 중…",true);
+    prepare(1,testPages).then(ok=>{if(ok)setBtn("pHalf",BTN.pHalf,false);});
   }catch(e){$("sSub").textContent="파일을 열지 못했습니다: "+e.message;}
 }
+window.addEventListener("afterprint",()=>{$("sheet").hidden=true;freshReload();});
 $("sClose").onclick=()=>{job++;$("sheet").hidden=true;};
 $("sheet").addEventListener("click",e=>{if(e.target.id==="sheet")$("sheet").hidden=true;});
 
 $("q").addEventListener("input",render);
 $("clear").onclick=()=>{$("q").value="";render();$("q").focus();};
 fetch("?list=1").then(async r=>{const j=await r.json();if(!r.ok||j.error)throw new Error(j.error||r.status);return j;}).then(paths=>{build(paths);
-  $("count").textContent=`교재 ${BOOKS.length}개 · 파일 ${paths.length}개`;chips();render();})
+  $("count").textContent=`교재 ${BOOKS.length}개 · 파일 ${paths.length}개`;
+  let st=null;try{st=JSON.parse(sessionStorage.getItem(SKEY)||"null");sessionStorage.removeItem(SKEY);}catch(e){}
+  if(st){$("q").value=st.q||"";book=typeof st.book==="number"?st.book:-1;}
+  chips();render();
+  if(st){window.scrollTo(0,st.y||0);
+    if(st.reopen){for(const b of BOOKS)for(const d of b.days)for(const f of d.files)if(f.path===st.reopen.path){openSheet(f,st.reopen.head,st.reopen.book);return;}}}
+  })
  .catch(e=>{$("list").innerHTML='<div class="empty">목록을 읽지 못했습니다. '+e.message+'</div>';});
 </script>
 </body>
