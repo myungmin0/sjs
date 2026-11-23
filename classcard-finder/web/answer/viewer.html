@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="ko"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>PDF 확인 후 인쇄</title>
+<script src="_answer_page/pdf.min.js"></script>
+<style>
+:root{--bg:#e9edf3;--surface:#fff;--line:#dde2ea;--fg:#1b2230;--muted:#667085;--accent:#2350c8;--accent-soft:#e6ecfb;--pen:#d33a2c;--pen-soft:#fbe9e6}
+@media (prefers-color-scheme:dark){:root{--bg:#0e1218;--surface:#1a2029;--line:#2c3441;--fg:#e8ecf2;--muted:#9aa4b5;--accent:#7d9bff;--accent-soft:#1f2a47;--pen:#ff7a6b;--pen-soft:#3a1f1c;color-scheme:dark}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:"Segoe UI","Malgun Gothic",-apple-system,sans-serif;font-size:15px}
+.bar{position:sticky;top:0;z-index:5;background:var(--surface);border-bottom:1px solid var(--line);padding:10px 16px;display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center}
+.bar a{color:var(--accent);text-decoration:none;font-weight:700}
+#title{flex:1 1 240px;min-width:0;font-weight:700;overflow-wrap:anywhere}
+#title small{display:block;color:var(--muted);font-weight:400;margin-top:2px}
+.btns{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+button{font:inherit;font-weight:700;min-height:42px;padding:0 16px;border-radius:10px;border:0;background:var(--accent-soft);color:var(--accent);cursor:pointer}
+button.main{background:var(--accent);color:#fff}
+button:disabled{opacity:.5;cursor:default}
+.rg{display:flex;align-items:center;gap:6px;color:var(--muted)}
+.rg input{width:56px;font:inherit;padding:8px;border:1.5px solid var(--line);border-radius:8px;background:var(--bg);color:var(--fg);text-align:center}
+main{max-width:900px;margin:0 auto;padding:16px;display:flex;flex-direction:column;gap:16px}
+.pg{background:var(--surface);border:2px solid var(--line);border-radius:10px;padding:8px;overflow:hidden}
+.pg.test{border-color:var(--accent)}
+.pg.ans{border-color:var(--pen);opacity:.85}
+.tag{display:inline-block;font-size:.82rem;font-weight:700;padding:3px 10px;border-radius:999px;margin:0 0 8px;background:var(--accent-soft);color:var(--accent)}
+.pg.ans .tag{background:var(--pen-soft);color:var(--pen)}
+canvas{display:block;width:100%;height:auto;background:#fff}
+.msg{padding:40px 0;text-align:center;color:var(--muted)}
+#printArea{display:none}
+@media print{
+  @page{size:A4;margin:0}
+  body>*:not(#printArea){display:none!important}
+  body{background:#fff}
+  #printArea{display:block}
+  #printArea img{display:block;width:100%;height:auto;page-break-after:always;break-after:page}
+  #printArea img:last-child{page-break-after:auto;break-after:auto}
+}
+</style></head>
+<body>
+<div class="bar">
+  <a id="back" href="index.php">← 목록</a>
+  <div id="title">불러오는 중…</div>
+  <div class="btns">
+    <button class="main" id="bHalf" type="button" disabled>시험지만 인쇄</button>
+    <button id="bAll" type="button" disabled>전체 인쇄</button>
+    <span class="rg"><input id="r1" type="number" min="1" inputmode="numeric">~<input id="r2" type="number" min="1" inputmode="numeric">쪽 <button id="bRange" type="button" disabled>이 쪽만 인쇄</button></span>
+  </div>
+</div>
+<main id="pages"><div class="msg">PDF를 불러오는 중…</div></main>
+<div id="printArea"></div>
+<script>
+pdfjsLib.GlobalWorkerOptions.workerSrc="_answer_page/pdf.worker.min.js";
+const $=id=>document.getElementById(id);
+$("back").onclick=e=>{if(document.referrer&&history.length>1){e.preventDefault();history.back();}};
+const path=new URLSearchParams(location.search).get("f")||"";
+let doc=null,N=0,T=0;
+function setBusy(b,txt){["bHalf","bAll","bRange"].forEach(id=>$(id).disabled=b);if(txt!==undefined)$("title").dataset.busy=txt;}
+async function printPages(a,b){
+  setBusy(true);const area=$("printArea");area.innerHTML="";
+  const old=$("title").querySelector("small");const keep=old?old.textContent:"";if(old)old.textContent="인쇄할 쪽을 준비하는 중…";
+  const imgs=[];
+  for(let i=a;i<=b;i++){
+    const page=await doc.getPage(i),vp=page.getViewport({scale:2.4});
+    const cv=document.createElement("canvas");cv.width=vp.width;cv.height=vp.height;
+    await page.render({canvasContext:cv.getContext("2d"),viewport:vp}).promise;
+    const im=new Image();im.src=cv.toDataURL("image/jpeg",.92);await im.decode();imgs.push(im);
+  }
+  imgs.forEach(im=>area.appendChild(im));
+  if(old)old.textContent=keep;setBusy(false);
+  window.print();
+}
+(async()=>{
+  if(!path){$("pages").innerHTML='<div class="msg">파일이 지정되지 않았습니다.</div>';return;}
+  const name=path.split("/").pop().replace(/\.pdf$/i,"");
+  document.title=name;
+  try{
+    doc=await pdfjsLib.getDocument("pdf.php?file="+encodeURIComponent(path)).promise;
+    N=doc.numPages;
+    T=(!/시험지/.test(name)&&N>=4&&N%2===0)?N/2:N;
+    $("title").innerHTML="";const t=document.createElement("span");t.textContent=name;const s=document.createElement("small");
+    s.textContent=`전체 ${N}쪽 · 시험지 ${T===N?"전부":"1–"+T+"쪽"}`;$("title").append(t,s);
+    $("bHalf").textContent=T===N?`시험지 인쇄 (${N}쪽)`:`시험지만 인쇄 (1–${T}쪽)`;
+    $("r1").value=1;$("r2").value=T;$("r1").max=$("r2").max=N;
+    $("bHalf").onclick=()=>printPages(1,T);
+    $("bAll").onclick=()=>printPages(1,N);
+    $("bRange").onclick=()=>{const a=Math.max(1,+$("r1").value||1),b=Math.min(N,+$("r2").value||N);printPages(a,Math.max(a,b));};
+    setBusy(false);
+    const box=$("pages");box.innerHTML="";
+    for(let i=1;i<=N;i++){
+      const wrap=document.createElement("div");wrap.className="pg "+(i<=T?"test":"ans");
+      const tag=document.createElement("span");tag.className="tag";tag.textContent=i<=T?`${i}쪽 · 시험지`:`${i}쪽 · 답지`;
+      const cv=document.createElement("canvas");wrap.append(tag,cv);box.appendChild(wrap);
+      const page=await doc.getPage(i),vp=page.getViewport({scale:Math.min(2,Math.max(1.2,(window.devicePixelRatio||1)*1.2))});
+      cv.width=vp.width;cv.height=vp.height;
+      await page.render({canvasContext:cv.getContext("2d"),viewport:vp}).promise;
+    }
+  }catch(e){$("pages").innerHTML="";const m=document.createElement("div");m.className="msg";m.textContent="PDF를 열지 못했습니다: "+e.message;$("pages").appendChild(m);$("title").textContent=name;}
+})();
+</script>
+</body></html>
